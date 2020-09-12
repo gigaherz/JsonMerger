@@ -6,8 +6,9 @@ license="BSD (3 clause)"
 [[mods]]
     modId="jsonmerger"
     version="${file.jarVersion}"
+    logoFile="logo.png"
     displayName="Json Merger"
-    displayURL="https://github.com/gigaherz/JsonMerger/" #optional
+    displayURL="https://github.com/gigaherz/JsonMerger/"
     authors="gigahez"
     description='''
 A small mod/coremod to allow merging jsons that would otherwise overwrite each other.

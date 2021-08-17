@@ -5,27 +5,28 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '3.+', changing: true
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '4.+', changing: true
     }
 }
 apply plugin: 'net.minecraftforge.gradle'
-// Only edit below this line, the above code adds and enables the necessary things for Forge to be setup.
+apply plugin: 'maven-publish'
 apply plugin: 'eclipse'
 
 version = '1.0'
 group = 'dev.gigaherz.jsonmerger' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
-archivesBaseName = 'JsonMerger-UNKNOWN'
-
-project.afterEvaluate {
-    archivesBaseName = "JsonMerger-${project.MC_VERSION}"
-}
+archivesBaseName = 'JsonMerger-lite'
 
 sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8' // Need this here so eclipse task generates correctly.
 
 println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
 
+repositories {
+    maven { url 'https://www.dogforce-games.com/maven/' }
+    mavenLocal()
+}
+
 minecraft {
-    mappings channel: 'snapshot', version: '20200514-1.16'
+    mappings channel: 'snapshot', version: '20210309-1.16.5'
 
     runs {
         client {
@@ -59,7 +60,7 @@ minecraft {
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.16.3-34.0.1'
+    minecraft 'net.minecraftforge:forge:1.16.5-36.1.23'
 }
 
 jar {
@@ -77,5 +78,31 @@ jar {
             "Implementation-Vendor" :"gigaherz",
             "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
         ])
+    }
+}
+
+tasks.publish.dependsOn build
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId project.archivesBaseName
+            from components.java
+
+            //artifact sourceJar
+
+            pom.withXml {
+                asNode().dependencies.dependency.each { dep ->
+                    if(dep.groupId.last().value().last() in ["net.minecraftforge"]) {
+                        assert dep.parent().remove(dep)
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            url "$projectDir/../CommonMaven"
+        }
     }
 }

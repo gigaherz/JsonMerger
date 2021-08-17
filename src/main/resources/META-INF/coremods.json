@@ -1,4 +1,3 @@
 {
-  "json_loading_hook_datapack": "cm/json_loading_hook_datapack.js",
-  "json_loading_hook_worldsettings": "cm/json_loading_hook_worldsettings.js"
+  "json_loading_hook_datapack": "cm/json_loading_hook_datapack.js"
 }

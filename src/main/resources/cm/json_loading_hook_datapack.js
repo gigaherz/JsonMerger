@@ -58,19 +58,19 @@ function initializeCoreMod() {
 		'JsonMerger JsonReloadListener#prepare Transformer': {
 			'target': {
 				'type': 'CLASS',
-				'name': "net.minecraft.client.resources.JsonReloadListener"
+				'name': "net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener"
 			},
 			'transformer': function(classNode) {
 
                 // Step 0: Find method
-                var prepareMethodName = ASMAPI.mapMethod("func_212854_a_");
+                var prepareMethodName = ASMAPI.mapMethod("m_5944_"); // SimplePreparableReloadListener.prepare
 
                 var method = null;
                 var m;
                 for(m = 0; m < classNode.methods.size(); m++)
                 {
                     var mn = classNode.methods.get(m);
-                    if(mn.name.equals(prepareMethodName) && mn.desc.equals("(Lnet/minecraft/resources/IResourceManager;Lnet/minecraft/profiler/IProfiler;)Ljava/util/Map;"))
+                    if(mn.name.equals(prepareMethodName) && mn.desc.equals("(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/util/profiling/ProfilerFiller;)Ljava/util/Map;"))
                     {
                         method = mn;
                         break;
@@ -79,14 +79,17 @@ function initializeCoreMod() {
 
                 if (method == null)
                 {
+                    ASMAPI.log("ERROR", "Could not find SimplePreparableReloadListener.prepare");
                     throw new Error("Could not find method?!");
                 }
 
+                ASMAPI.log("INFO", "Found SimplePreparableReloadListener.prepare");
+
                 // Part 1: Find method call to fromJson, and inject right before this code segment.
                 //
-                //   INVOKESTATIC net/minecraft/util/JSONUtils.fromJson (Lcom/google/gson/Gson;Ljava/io/Reader;Ljava/lang/Class;)Ljava/lang/Object;
+                //   INVOKESTATIC net/minecraft/util/GsonHelper.fromJson (Lcom/google/gson/Gson;Ljava/io/Reader;Ljava/lang/Class;)Ljava/lang/Object;
                 //
-                var fromJsonMethod = ASMAPI.mapMethod("func_193839_a");
+                var fromJsonMethod = ASMAPI.mapMethod("m_13776_");
 
                 // Find method call instruction
                 var methodCallFoundAt0 = -1;
@@ -96,7 +99,7 @@ function initializeCoreMod() {
                     var insn = method.instructions.get(i);
                     if (insn instanceof MethodInsnNode &&
                         insn.getOpcode() == Opcodes.INVOKESTATIC &&
-                        insn.owner.equals("net/minecraft/util/JSONUtils") &&
+                        insn.owner.equals("net/minecraft/util/GsonHelper") &&
                         insn.name.equals(fromJsonMethod))
                     {
                         methodCallFoundAt0 = i;
@@ -106,8 +109,11 @@ function initializeCoreMod() {
 
                 if (methodCallFoundAt0 < 0)
                 {
+                    ASMAPI.log("ERROR", "Could not find method call to GsonHelper.fromJson");
                     throw new Error("Could not find method call?!");
                 }
+
+                ASMAPI.log("INFO", "Found method call to GsonHelper.fromJson at {}", methodCallFoundAt0);
 
                 // Find LabelNode above method call
                 var labelFoundAt0 = -1;
@@ -123,15 +129,25 @@ function initializeCoreMod() {
 
                 if (labelFoundAt0 < 0)
                 {
+                    ASMAPI.log("ERROR", "Could not label above method call?!");
                     throw new Error("Could not find label above?!");
                 }
 
-                // Find LabelNode below method call
+                ASMAPI.log("INFO", "Found label above method call, at {}", labelFoundAt0);
+
+                // Find LabelNode below method call, keep the ASTORE we find before it
                 var labelFoundAt1 = -1;
+                var astoreVarSlot = -1;
                 for(i=methodCallFoundAt0; i < method.instructions.size(); i++)
                 {
                     var insn = method.instructions.get(i);
-                    if (insn instanceof LabelNode)
+                    if (insn instanceof VarInsnNode)
+                    {
+                        if (insn.getOpcode() == Opcodes.ASTORE) {
+                            astoreVarSlot = insn["var"];
+                        }
+                    }
+                    else if (insn instanceof LabelNode)
                     {
                         labelFoundAt1 = i;
                         break;
@@ -140,11 +156,24 @@ function initializeCoreMod() {
 
                 if (labelFoundAt1 < 0)
                 {
+                    ASMAPI.log("ERROR", "Could not label below method call?!");
                     throw new Error("Could not find label below?!");
                 }
 
+                ASMAPI.log("INFO", "Found label below method call, at {}", labelFoundAt1);
+
+                if (astoreVarSlot < 0)
+                {
+                    ASMAPI.log("ERROR", "There wasn't an ASTORE before the label?!");
+                    throw new Error("Could not find ASTORE?!");
+                }
+
+                ASMAPI.log("INFO", "Found ASTORE, variable id = {}", astoreVarSlot);
+
                 // Target label for the IFNONNULL
                 var labelEndIf = method.instructions.get(labelFoundAt1);
+
+                ASMAPI.log("INFO", "Injecting code...");
 
                 // Prepare list of instructions to insert
                 var list0 = new InsnList();
@@ -154,55 +183,18 @@ function initializeCoreMod() {
                         aload(1),
                         aload(6),
                         invokeStatic("dev/gigaherz/jsonmerger/JsonMerger", "combineAllJsonResources",
-                            "(Lnet/minecraft/resources/IResourceManager;Lnet/minecraft/util/ResourceLocation;)Lcom/google/gson/JsonElement;", false
+                            "(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/ResourceLocation;)Lcom/google/gson/JsonElement;", false
                         ),
-                        astore(15),
+                        astore(astoreVarSlot),
 
                     label(),
-                        aload(15),
+                        aload(astoreVarSlot),
                         ifNonnull(labelEndIf)
                 );
 
                 // Insert instructions at the target location
                 var target0 = method.instructions.get(labelFoundAt0);
                 method.instructions.insertBefore(target0, list0);
-/* AFTER
-
-  L3
-    LINENUMBER 49 L3
-    ALOAD 1
-    ALOAD 6
-    INVOKESTATIC net/minecraftforge/common/util/JsonMerger.combineAllJsonResources (Lnet/minecraft/resources/IResourceManager;Lnet/minecraft/util/ResourceLocation;)Lcom/google/gson/JsonElement;
-    ASTORE 15
-   L46
-    LINENUMBER 50 L46
-    ALOAD 15
-    IFNONNULL L47
-
-    ... original code ...
-   L48
-    LINENUMBER 51 L48
-    ALOAD 0
-    GETFIELD net/minecraft/client/resources/JsonReloadListener.gson : Lcom/google/gson/Gson;
-    ALOAD 13
-    LDC Lcom/google/gson/JsonElement;.class
-    INVOKESTATIC net/minecraft/util/JSONUtils.fromJson (Lcom/google/gson/Gson;Ljava/io/Reader;Ljava/lang/Class;)Ljava/lang/Object;
-    CHECKCAST com/google/gson/JsonElement
-    ASTORE 15
-   L47
-*/
-/* BEFORE
-   L3
-    LINENUMBER 49 L3
-    ALOAD 0
-    GETFIELD net/minecraft/client/resources/JsonReloadListener.gson : Lcom/google/gson/Gson;
-    ALOAD 13
-    LDC Lcom/google/gson/JsonElement;.class
-    INVOKESTATIC net/minecraft/util/JSONUtils.fromJson (Lcom/google/gson/Gson;Ljava/io/Reader;Ljava/lang/Class;)Ljava/lang/Object;
-    CHECKCAST com/google/gson/JsonElement
-    ASTORE 15
-   L46
-*/
 
 				return classNode;
 			}

@@ -3,9 +3,9 @@ package dev.gigaherz.jsonmerger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.gson.*;
-import net.minecraft.resources.IResource;
-import net.minecraft.resources.IResourceManager;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,15 +26,15 @@ public class JsonMerger
 
     private static final Gson SERIALIZER = new GsonBuilder().create();
 
-    public static JsonElement combineAllJsonResources(IResourceManager resourceManager, ResourceLocation location)
+    public static JsonElement combineAllJsonResources(ResourceManager resourceManager, ResourceLocation location)
     {
         try
         {
-            List<IResource> allResources = resourceManager.getAllResources(location);
-            List<IResource> resourceList = allResources.size() == 1 ? allResources : Lists.reverse(allResources);
+            List<Resource> allResources = resourceManager.getResources(location);
+            List<Resource> resourceList = allResources.size() == 1 ? allResources : Lists.reverse(allResources);
             List<JsonElement> results = Lists.newArrayList();
             boolean stopping = false;
-            for (IResource resource : resourceList)
+            for (Resource resource : resourceList)
             {
                 if (stopping)
                 {
@@ -42,7 +42,7 @@ public class JsonMerger
                     resource.close();
                     continue;
                 }
-                try (IResource t = resource;
+                try (Resource t = resource;
                      InputStream is = t.getInputStream();
                      InputStreamReader rd = new InputStreamReader(is))
                 {

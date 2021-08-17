@@ -5,18 +5,18 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '4.+', changing: true
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.+', changing: true
     }
 }
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'maven-publish'
-apply plugin: 'eclipse'
+apply from: 'https://raw.githubusercontent.com/SizableShrimp/Forge-Class-Remapper/main/classremapper.gradle'
 
-version = '1.0'
+version = '1.1'
 group = 'dev.gigaherz.jsonmerger' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'JsonMerger-lite'
 
-sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8' // Need this here so eclipse task generates correctly.
+java.toolchain.languageVersion = JavaLanguageVersion.of(16)
 
 println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
 
@@ -26,14 +26,14 @@ repositories {
 }
 
 minecraft {
-    mappings channel: 'snapshot', version: '20210309-1.16.5'
+    mappings channel: 'official', version: '1.17.1'
 
     runs {
         client {
             workingDirectory project.file('run')
 
-            property 'forge.logging.markers', ''
-            property 'forge.logging.console.level', 'debug'
+            property 'forge.logging.markers', 'CLASSDUMP'
+            property 'forge.logging.console.level', 'trace'
 
             mods {
                 thismod {
@@ -60,7 +60,7 @@ minecraft {
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.16.5-36.1.23'
+    minecraft 'net.minecraftforge:forge:1.17.1-37.0.34'
 }
 
 jar {

@@ -3,9 +3,9 @@ package dev.gigaherz.jsonmerger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.gson.*;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,22 +64,22 @@ public class JsonMerger
                 }
             }
 
-            return combineAllJsonResources(results.size() == 1 ? results : Lists.reverse(results));
+            return combineStack(results.size() == 1 ? results : Lists.reverse(results));
         }
-        catch(IOException e)
+        catch (IOException e)
         {
             throw new RuntimeException(String.format("Failed to close file stream for %s", location), e);
         }
     }
 
-    public static JsonElement combineAllJsonResources(List<JsonElement> elements)
+    public static JsonElement combineStack(List<JsonElement> elements)
     {
         JsonElement merged = null;
-        for(JsonElement next : elements)
+        for (JsonElement next : elements)
         {
             if (merged == null)
             {
-                merged = next;
+                merged = cleanup(next);
             }
             else
             {
@@ -105,14 +105,14 @@ public class JsonMerger
                     String modeName = settings.get("mode").getAsString();
                     mode = MergeMode.byName(modeName);
                     if (mode == null)
-                        throw new JsonSyntaxException(String.format("Unknown combine mode: %s",  modeName));
+                        throw new JsonSyntaxException(String.format("Unknown combine mode: %s", modeName));
                 }
 
                 if (settings.has("value"))
                 {
                     second = settings.get("value");
 
-                    for(Map.Entry<String, JsonElement> child : secondObj.entrySet())
+                    for (Map.Entry<String, JsonElement> child : secondObj.entrySet())
                     {
                         if (!child.getKey().equals("_jm_combine"))
                             throw new JsonSyntaxException("Objects must not have content other than '_jm_combine' if they use the 'value' feature.");
@@ -127,7 +127,9 @@ public class JsonMerger
     private static JsonElement getCombinedInternal(JsonElement first, JsonElement second, MergeMode mode)
     {
         if (mode == MergeMode.OVERWRITE)
-            return second;
+        {
+            return cleanup(second);
+        }
 
         if (first.isJsonObject())
         {
@@ -145,15 +147,12 @@ public class JsonMerger
         }
         else if (first.isJsonArray())
         {
-            switch(mode)
-            {
-                case COMBINE:
-                    return concatenateArrays(first.getAsJsonArray(), second.getAsJsonArray());
-                case ZIP:
-                    return zipArrays(first.getAsJsonArray(), second.getAsJsonArray());
-                default:
-                    throw new JsonSyntaxException(String.format("Invalid combine mode for a json array: %s. Allowed: overwrite, combine, zip", mode));
-            }
+            return switch (mode)
+                    {
+                        case COMBINE -> concatenateArrays(first.getAsJsonArray(), second.getAsJsonArray());
+                        case ZIP -> zipArrays(first.getAsJsonArray(), second.getAsJsonArray());
+                        default -> throw new JsonSyntaxException(String.format("Invalid combine mode for a json array: %s. Allowed: overwrite, combine, zip", mode));
+                    };
         }
         else if (first.isJsonNull())
         {
@@ -169,11 +168,49 @@ public class JsonMerger
         return second;
     }
 
+    private static JsonElement cleanup(JsonElement second)
+    {
+        if (second.isJsonObject())
+        {
+            var obj = second.getAsJsonObject();
+            if (obj.has("_jm_combine"))
+            {
+                var settings = obj.get("_jm_combine").getAsJsonObject();
+                if (settings.has("value"))
+                {
+                    return cleanup(settings.get("value"));
+                }
+                obj.remove("_jm_combine");
+            }
+            for(var kv : obj.entrySet())
+            {
+                var v = kv.getValue();
+                var r = cleanup(v);
+                if (r != v)
+                    kv.setValue(r);
+            }
+        }
+        else if(second.isJsonArray())
+        {
+            var arr = second.getAsJsonArray();
+            for(int i=0;i<arr.size();i++)
+            {
+                var v = arr.get(i);
+                var r = cleanup(v);
+                if (r != v)
+                {
+                    arr.set(i, r);
+                }
+            }
+        }
+        return second;
+    }
+
     public static JsonElement combineObjects(JsonObject first, JsonObject second)
     {
         JsonObject result = new JsonObject();
-        List<String> keysToDelete = Lists.newArrayList();
-        for(Map.Entry<String, JsonElement> entry : first.entrySet())
+        List<String> keysToDelete = Lists.newArrayList("_jm_combine");
+        for (Map.Entry<String, JsonElement> entry : first.entrySet())
         {
             String key = entry.getKey();
             JsonElement value = entry.getValue();
@@ -190,16 +227,17 @@ public class JsonMerger
                 result.add(key, value);
             }
         }
-        for(Map.Entry<String, JsonElement> entry : second.entrySet())
+        for (Map.Entry<String, JsonElement> entry : second.entrySet())
         {
             String key = entry.getKey();
             JsonElement value = entry.getValue();
             if (!result.has(key))
             {
+                value = cleanup(value);
                 result.add(key, value);
             }
         }
-        for(String key : keysToDelete)
+        for (String key : keysToDelete)
         {
             result.remove(key);
         }
@@ -208,26 +246,67 @@ public class JsonMerger
 
     private static JsonElement zipArrays(JsonArray first, JsonArray second)
     {
-        JsonArray a = new JsonArray();
-        int end = Math.min(first.size(),second.size());
-        for(int i=0;i<end;i++)
+        if (first.size() == 0)
         {
-            a.add(combineJsonElements(first.get(i), second.get(i), MergeMode.COMBINE));
+            return cleanup(second);
         }
-        return null;
+
+        if (second.size() == 0)
+            return first;
+
+        JsonArray array = new JsonArray();
+        int end = Math.min(first.size(), second.size());
+        for (int i = 0; i < end; i++)
+        {
+            array.add(combineJsonElements(first.get(i), second.get(i), MergeMode.COMBINE));
+        }
+
+        if (first.size() > end)
+        {
+            for(int i=end; i<first.size();i++)
+            {
+                array.add(first.get(i));
+            }
+        }
+        else
+        {
+            for(int i=end; i<second.size();i++)
+            {
+                var value = second.get(i);
+                value = cleanup(value);
+                array.add(value);
+            }
+        }
+
+        return array;
     }
 
     private static JsonElement concatenateArrays(JsonArray first, JsonArray second)
     {
+        if (first.size() == 0)
+        {
+            return cleanup(second);
+        }
+
+        if (second.size() == 0)
+            return first;
+
         List<JsonElement> elements = Lists.newArrayList();
-        for(int i=0;i<first.size();i++)
+        for (int i = 0; i < first.size(); i++)
+        {
             elements.add(first.get(i));
-        for(int i=0;i<second.size();i++)
-            processJsonArrayElement(elements, second.get(i));
+        }
+        for (int i = 0; i < second.size(); i++)
+        {
+            var s = second.get(i);
+            processJsonArrayElement(elements, s);
+        }
 
         JsonArray result = new JsonArray();
         for (JsonElement element : elements)
+        {
             result.add(element);
+        }
         return result;
     }
 
@@ -252,7 +331,7 @@ public class JsonMerger
                     String modeName = settings.get("mode").getAsString();
                     mode = MergeMode.byName(modeName);
                     if (mode == null)
-                        throw new JsonSyntaxException(String.format("Unknown combine mode: %s",  modeName));
+                        throw new JsonSyntaxException(String.format("Unknown combine mode: %s", modeName));
                 }
 
                 if (settings.has("value"))
@@ -293,30 +372,21 @@ public class JsonMerger
                     if (after && mode != MergeMode.INSERT)
                         throw new JsonSyntaxException("After is only available in insert mode.");
                 }
+
+                secondObj.remove("_jm_combine");
             }
         }
 
         switch (mode)
         {
-            case APPEND:
-                parent.add(second);
-                break;
-            case INSERT:
-                processArrayOperation(parent, second, index, find, exact, silent, after, parent::add);
-                break;
-            case OVERWRITE:
-                processArrayOperation(parent, second, index, find, exact, silent, after, parent::set);
-                break;
-            case COMBINE:
-                processArrayOperation(parent, second, index, find, exact, silent, after, (i,e) ->
-                        parent.set(i, combineJsonElements(parent.get(i), e, MergeMode.COMBINE)));
-                break;
-            case DELETE:
-                processArrayOperation(parent, second, index, find, exact, silent, after, (i,e) ->
-                        parent.remove(i));
-                break;
-            default:
-                throw new JsonSyntaxException(String.format("Invalid combine mode for children of json arrays: %s. Allowed: append, combine, overwrite, insert", mode));
+            case APPEND -> parent.add(second);
+            case INSERT -> processArrayOperation(parent, second, index, find, exact, silent, after, parent::add);
+            case OVERWRITE -> processArrayOperation(parent, second, index, find, exact, silent, after, parent::set);
+            case COMBINE -> processArrayOperation(parent, second, index, find, exact, silent, after, (i, e) ->
+                    parent.set(i, combineJsonElements(parent.get(i), e, MergeMode.COMBINE)));
+            case DELETE -> processArrayOperation(parent, second, index, find, exact, silent, after, (i, e) ->
+                    parent.remove((int) i));
+            default -> throw new JsonSyntaxException(String.format("Invalid combine mode for children of json arrays: %s. Allowed: append, combine, overwrite, insert", mode));
         }
     }
 
@@ -360,7 +430,7 @@ public class JsonMerger
                 return false;
             return compareObjectWithPattern(base.getAsJsonObject(), pattern.getAsJsonObject(), exact);
         }
-        else if(pattern.isJsonArray())
+        else if (pattern.isJsonArray())
         {
             if (!base.isJsonArray())
                 return false;
@@ -379,7 +449,7 @@ public class JsonMerger
             if (array.size() != pattern.size())
                 return false;
 
-            for(int i=0;i<pattern.size();i++)
+            for (int i = 0; i < pattern.size(); i++)
             {
                 if (!compareWithPattern(array.get(i), pattern.get(i), true))
                     return false;
@@ -392,10 +462,10 @@ public class JsonMerger
             return false;
 
         BitSet processedIndices = new BitSet();
-        for(int i=0;i<pattern.size();i++)
+        for (int i = 0; i < pattern.size(); i++)
         {
             boolean found = false;
-            for(int j=0;j<array.size();j++)
+            for (int j = 0; j < array.size(); j++)
             {
                 if (processedIndices.get(j))
                     continue;
@@ -408,7 +478,7 @@ public class JsonMerger
                 }
             }
 
-            if(!found)
+            if (!found)
                 return false;
         }
 
@@ -417,7 +487,7 @@ public class JsonMerger
 
     private static boolean compareObjectWithPattern(JsonObject obj, JsonObject pattern, boolean exact)
     {
-        for(Map.Entry<String, JsonElement> entry : pattern.entrySet())
+        for (Map.Entry<String, JsonElement> entry : pattern.entrySet())
         {
             String key = entry.getKey();
             if (!obj.has(key))
@@ -428,7 +498,7 @@ public class JsonMerger
 
         if (exact)
         {
-            for(Map.Entry<String, JsonElement> entry : pattern.entrySet())
+            for (Map.Entry<String, JsonElement> entry : pattern.entrySet())
             {
                 String key = entry.getKey();
                 if (!pattern.has(key))
@@ -457,7 +527,7 @@ public class JsonMerger
         String modeName = settings.get("mode").getAsString();
         MergeMode mode = MergeMode.byName(modeName);
         if (mode == null)
-            throw new JsonSyntaxException(String.format("Unknown combine mode: %s",  modeName));
+            throw new JsonSyntaxException(String.format("Unknown combine mode: %s", modeName));
         return mode;
     }
 
@@ -491,7 +561,7 @@ public class JsonMerger
         @Nullable
         public static MergeMode byName(String name)
         {
-            for(MergeMode m : VALUES)
+            for (MergeMode m : VALUES)
             {
                 if (m.getName().equals(name))
                     return m;

@@ -12,7 +12,7 @@ apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'maven-publish'
 apply from: 'https://raw.githubusercontent.com/SizableShrimp/Forge-Class-Remapper/main/classremapper.gradle'
 
-version = '1.1.1'
+version = '1.2.0'
 group = 'dev.gigaherz.jsonmerger' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'JsonMerger-lite'
 
@@ -23,6 +23,10 @@ println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getPro
 repositories {
     maven { url 'https://www.dogforce-games.com/maven/' }
     mavenLocal()
+}
+
+sourceSets {
+    debug
 }
 
 minecraft {
@@ -38,7 +42,7 @@ minecraft {
             mods {
                 thismod {
                     source sourceSets.main
-                    source sourceSets.test
+                    source sourceSets.debug
                 }
             }
         }
@@ -52,7 +56,7 @@ minecraft {
             mods {
                 examplemod {
                     source sourceSets.main
-                    source sourceSets.test
+                    source sourceSets.debug
                 }
             }
         }
@@ -61,6 +65,11 @@ minecraft {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.18.1-39.1.1'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+
+    testImplementation "com.google.guava:guava:29.0-jre"
 }
 
 jar {

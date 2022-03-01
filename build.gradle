@@ -12,11 +12,11 @@ apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'maven-publish'
 apply from: 'https://raw.githubusercontent.com/SizableShrimp/Forge-Class-Remapper/main/classremapper.gradle'
 
-version = '1.1'
+version = '1.1.1'
 group = 'dev.gigaherz.jsonmerger' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'JsonMerger-lite'
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(16)
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
 
@@ -26,7 +26,7 @@ repositories {
 }
 
 minecraft {
-    mappings channel: 'official', version: '1.17.1'
+    mappings channel: 'official', version: '1.18.1'
 
     runs {
         client {
@@ -60,7 +60,7 @@ minecraft {
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.17.1-37.0.34'
+    minecraft 'net.minecraftforge:forge:1.18.1-39.1.1'
 }
 
 jar {

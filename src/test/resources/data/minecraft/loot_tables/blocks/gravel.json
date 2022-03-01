@@ -1,0 +1,64 @@
+{
+  "_jm_combine": {
+    "mode": "combine"
+  },
+  "pools": [
+    {
+      "_jm_combine": {
+        "mode": "combine",
+        "find": {
+          "entries": [{
+            "children": [{
+                "children": [{
+                  "type": "minecraft:item",
+                  "name": "minecraft:flint"
+                }]
+              }
+            ]
+          }]
+        }
+      },
+      "entries": [
+        {
+          "_jm_combine": {
+            "mode": "combine",
+            "find": {
+              "children": [{
+                "children": [{
+                  "type": "minecraft:item",
+                  "name": "minecraft:flint"
+                }]
+              }]
+            }
+          },
+          "children": [
+            {
+              "_jm_combine": {
+                "mode": "combine",
+                "find": {
+                  "children": [{
+                    "type": "minecraft:item",
+                    "name": "minecraft:flint"
+                  }]
+                }
+              },
+              "children": [
+                {
+                  "_jm_combine": {
+                    "mode": "overwrite",
+                    "find": {
+                      "type": "minecraft:item",
+                      "name": "minecraft:flint"
+                    }
+                  },
+                  "type": "minecraft:item",
+                  "name": "minecraft:diamond"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

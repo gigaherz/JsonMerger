@@ -384,6 +384,8 @@ public class JsonMerger
                 if (!compareWithPattern(array.get(i), pattern.get(i), true))
                     return false;
             }
+
+            return true;
         }
 
         if (pattern.size() > array.size())
@@ -398,7 +400,7 @@ public class JsonMerger
                 if (processedIndices.get(j))
                     continue;
 
-                if (compareWithPattern(array.get(j), pattern.get(i), true))
+                if (compareWithPattern(array.get(j), pattern.get(i), false))
                 {
                     processedIndices.set(j);
                     found = true;

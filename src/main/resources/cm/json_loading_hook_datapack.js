@@ -63,7 +63,7 @@ function initializeCoreMod() {
 			'transformer': function(classNode) {
 
                 // Step 0: Find method
-                var prepareMethodName = ASMAPI.mapMethod("m_5944_"); // SimplePreparableReloadListener.prepare
+                var prepareMethodName = ASMAPI.mapMethod("m_5944_"); // SimpleJsonResourceReloadListener.prepare
 
                 var method = null;
                 var m;
@@ -180,8 +180,8 @@ function initializeCoreMod() {
                 addAll(list0,
 
                     label(),
-                        aload(1),
-                        aload(6),
+                        aload(1), // resourceManager
+                        aload(7), // path
                         invokeStatic("dev/gigaherz/jsonmerger/JsonMerger", "combineAllJsonResources",
                             "(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/ResourceLocation;)Lcom/google/gson/JsonElement;", false
                         ),

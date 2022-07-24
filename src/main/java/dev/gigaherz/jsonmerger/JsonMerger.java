@@ -28,48 +28,32 @@ public class JsonMerger
 
     public static JsonElement combineAllJsonResources(ResourceManager resourceManager, ResourceLocation location)
     {
-        try
+        List<Resource> allResources = resourceManager.getResourceStack(location);
+        List<Resource> resourceList = allResources.size() == 1 ? allResources : Lists.reverse(allResources);
+        List<JsonElement> results = Lists.newArrayList();
+        for (Resource resource : resourceList)
         {
-            List<Resource> allResources = resourceManager.getResources(location);
-            List<Resource> resourceList = allResources.size() == 1 ? allResources : Lists.reverse(allResources);
-            List<JsonElement> results = Lists.newArrayList();
-            boolean stopping = false;
-            for (Resource resource : resourceList)
+            try (var rd = resource.openAsReader())
             {
-                if (stopping)
+                JsonElement jsonElement = SERIALIZER.fromJson(rd, JsonElement.class);
+                if (jsonElement == null)
                 {
-                    // needed to avoid leaking file handles.
-                    resource.close();
-                    continue;
+                    LOGGER.error("Couldn't load data from {} as it's null or empty", location);
+                    return null;
                 }
-                try (Resource t = resource;
-                     InputStream is = t.getInputStream();
-                     InputStreamReader rd = new InputStreamReader(is))
-                {
-                    JsonElement jsonElement = SERIALIZER.fromJson(rd, JsonElement.class);
-                    if (jsonElement == null)
-                    {
-                        LOGGER.error("Couldn't load data from {} as it's null or empty", location);
-                        return null;
-                    }
 
-                    results.add(jsonElement);
+                results.add(jsonElement);
 
-                    if (isOverwriteMode(jsonElement))
-                        stopping = true;
-                }
-                catch (IOException e)
-                {
-                    LOGGER.error("Error reading JSON from {}", location, e);
-                }
+                if (isOverwriteMode(jsonElement))
+                    break;
             }
+            catch (IOException e)
+            {
+                LOGGER.error("Error reading JSON from {}", location, e);
+            }
+        }
 
-            return combineStack(results.size() == 1 ? results : Lists.reverse(results));
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(String.format("Failed to close file stream for %s", location), e);
-        }
+        return combineStack(results.size() == 1 ? results : Lists.reverse(results));
     }
 
     public static JsonElement combineStack(List<JsonElement> elements)
